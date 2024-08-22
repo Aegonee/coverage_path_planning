@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#from typing import Counter, List
+# from typing import Counter, List
 from sqlite3 import Time
 from tkinter import CENTER
 from typing import Counter, List, Sequence
@@ -13,8 +13,11 @@ from matplotlib.patches import Arc
 from sklearn.model_selection import ParameterSampler
 from sqlalchemy import null
 import re
-#import matplotlib
-#from main import max_width, time_cal
+
+from sqlalchemy.sql.expression import false
+
+# import matplotlib
+# from main import max_width, time_cal
 
 '''
 ------------------------------------------------------
@@ -167,6 +170,13 @@ class zigzagarea:
         else:
             __dot_temp=vector1[0]*vector2[1]-vector2[0]*vector1[1]
         return __dot_temp
+    
+    @staticmethod
+    def approximate(float1, float2, error = 0.001):
+        if abs(float1 - float2) <= abs(error * float1) and abs(float1 - float2)<= error * abs(error * float2):
+            return True
+        else:
+            return False
     
     def isconvex(self) -> bool:
         __dot_temp=[]
@@ -770,7 +780,7 @@ class zigzagarea:
             #print('total_time',i,self.points_sorted[i],__total_time)
 
         return __total_dist,__total_time
-    
+
 class totalarea(zigzagarea):
 
     sub_point=[]
@@ -1112,18 +1122,224 @@ class totalarea(zigzagarea):
             del __point_temp        
         return __result
 
+
 class concavearea(zigzagarea):
 
+    concave_index = []
+    concave_point = []
+    edge = []
 
-    def multi_input(self):
-        pass
+    def __init__(self, point__input) -> None:
+
+        super().__init__(point__input)
+        self.check_concave()
+        self.isconvex()
+        self.line_segment_gene()
+        print("self.point is {0}".format(self.point))
+        print("line segment is {0}".format(self.edge))
+        print("concave_point is {0}".format(self.concave_point))
+        print("concave_index is {0}".format(self.concave_index))
+
+    def line_segment_gene(self):
+        self.edge = []
+        _next_i = 0
+        for i in range(len(self.point)):
+            _next_i = i + 1
+            if _next_i == len(self.point):
+                _next_i = 0
+            self.edge.append((self.point[i], self.point[_next_i]))
+
+    # sort the point list by x coordinate
+    def x_sort(self, arr):
+
+        if len(arr) <= 1:
+            return arr
+        _pivot = arr[len(arr)//2]
+        _left = []
+        _middle = []
+        _right = []
+        for i in range(len(arr)):
+            if arr[i][0] < _pivot[0]:
+                _left.append(arr[i])
+            elif arr[i][0] == _pivot[0]:
+                _middle.append(arr[i])
+            else:
+                _right.append(arr[i])
+        return self.x_sort(_left) + _middle + self.x_sort(_right)
+
+    # sort the point list by y coordinate
+    def y_sort(self, arr):
+
+        if len(arr) <= 1:
+            return arr
+        _pivot = arr[len(arr)//2]
+        _left = []
+        _middle = []
+        _right = []
+        for i in range(len(arr)):
+            if arr[i][1] < _pivot[1]:
+                _left.append(arr[i])
+            elif arr[i][1] == _pivot[1]:
+                _middle.append(arr[i])
+            else:
+                _right.append(arr[i])
+        return self.x_sort(_left) + _middle + self.x_sort(_right)        
+
+    def GrahamHull(self, multi_connect = []):
+
+        self.GrahamTemp = self.x_sort(self.point)        
+        _hull = []
+        is_concave = False
+        # _next_i = 0
+
+        # print("sorted by x, the point list is {0}".format(self.GrahamTemp))
+
+        # generate lower part of hull
+        for i in range(len(self.GrahamTemp)):
+
+            if len(_hull) < 2:
+                _hull.append(self.GrahamTemp[i])
+            else:
+                _vector1 = _hull[len(_hull)-1][0]-_hull[len(_hull)-2][0], _hull[len(_hull)-1][1]-_hull[len(_hull)-2][1]
+                _vector2 = self.GrahamTemp[i][0]-_hull[len(_hull)-2][0], self.GrahamTemp[i][1]-_hull[len(_hull)-2][0]
+                _cross = self.cross_product(_vector1, _vector2)
+
+                '''
+                print("vector 1 = {0}, vector2 = {1}".format(_vector1,_vector2))
+                print("cross product is {0}".format(_cross))
+                '''
+
+                while _cross < 0 and len(_hull) >= 2:
+                    _hull.pop()
+                    if len(_hull) < 2:
+                        continue
+                    else:
+                        _vector1 = _hull[len(_hull)-1][0]-_hull[len(_hull)-2][0], _hull[len(_hull)-1][1]-_hull[len(_hull)-2][1]
+                        _vector2 = self.GrahamTemp[i][0]-_hull[len(_hull)-2][0], self.GrahamTemp[i][1]-_hull[len(_hull)-2][0]
+                        _cross = self.cross_product(_vector1, _vector2)
+
+                _hull.append(self.GrahamTemp[i])
+
+                '''
+                if _cross >= 0:
+                    _hull.append(self.GrahamTemp[i])
+                else:
+                    _hull.pop()
+                    if len(_hull) < 2:
+                        _hull.append(self.GrahamTemp[i])
+                '''
+            '''        
+            print("in {0}th execution, _hull = {1}, the next point is {2}".format(i, _hull, self.GrahamTemp[i]))
+            print("")
+            '''
+
+        _lower_part = _hull
+        _hull = []            
+        self.GrahamTemp.reverse()
+
+        # generate upper part of hull
+        for i in range(len(self.GrahamTemp)):
+
+            if len(_hull) < 2:
+                _hull.append(self.GrahamTemp[i])
+            else:
+                _vector1 = _hull[len(_hull)-1][0]-_hull[len(_hull)-2][0], _hull[len(_hull)-1][1]-_hull[len(_hull)-2][1]
+                _vector2 = self.GrahamTemp[i][0]-_hull[len(_hull)-2][0], self.GrahamTemp[i][1]-_hull[len(_hull)-2][0]
+                _cross = self.cross_product(_vector1, _vector2)
+
+                while _cross < 0 and len(_hull) >= 2:
+                    _hull.pop()
+                    if len(_hull) < 2:
+                        continue
+                    else:
+                        _vector1 = _hull[len(_hull)-1][0]-_hull[len(_hull)-2][0], _hull[len(_hull)-1][1]-_hull[len(_hull)-2][1]
+                        _vector2 = self.GrahamTemp[i][0]-_hull[len(_hull)-2][0], self.GrahamTemp[i][1]-_hull[len(_hull)-2][0]
+                        _cross = self.cross_product(_vector1, _vector2)
+
+                _hull.append(self.GrahamTemp[i])
+
+        _upper_part = _hull
+
+        print("upper part is {0}".format(_upper_part))
+        print("lower part is {0}".format(_lower_part))
+
+        _upper_part.pop()
+        _upper_part.pop(0)
+
+        _hull = _lower_part + _upper_part
+        self.hull = _hull
+        return _hull
+
+    # Graham method
+    '''
+    def check_concave(self):
+        self.concave_point = []
+        self.concave_index = [0] * len(self.point)
+        _hull = self.GrahamHull()
+        if len(self.point) == len(_hull):
+            self.is_concave = False
+            return False
+        elif len(self.point) < len(_hull):
+            raise ValueError("Unknow error: Please check your input.")
+        else:
+            self.concave_point = set(self.point) - set(_hull)
+            self.concave_point = list(self.concave_point)
+            for i in range(len(self.concave_point)):
+                _index = self.point.index(self.concave_point[i])
+                self.concave_index[_index] = 1
+            print("initiated successfully.")
+            self.is_concave = True
+            return True
+    '''
+
+    def check_concave(self, is_clockwise = 0):
+
+        # default: not clockwise
+
+        self.concave_point = []
+        self.concave_index = [0] * len(self.point)
+        self.is_concave = False
+
+        for i in range(len(self.point)):
+            if i == 0:
+                _pre_index = len(self.point) - 1
+                _next_index = i + 1
+            elif i == len(self.point)-1:
+                _pre_index = i - 1
+                _next_index = 0
+            else:
+                _pre_index = i - 1
+                _next_index = i + 1
+            _vector1 = self.point[i][0] - self.point[_pre_index][0], self.point[i][1] - self.point[_pre_index][1]
+            _vector2 = self.point[_next_index][0] - self.point[i][0], self.point[_next_index][1] - self.point[i][1]
+            # _vector2 = self.point[_next_index][0] - self.point[_pre_index][0], self.point[_next_index][1] - self.point[_pre_index][1]
+            # print()
+            # print("vector1 = {0} vector2 = {1}".format(_vector1,_vector2))
+            # print("cross_product is {0}".format(zigzagarea.cross_product(_vector1, _vector2)))
+            # print()
+            _x_product = zigzagarea.cross_product(_vector1, _vector2)
+            if is_clockwise == 0:
+                if _x_product < 0:
+                    self.is_concave = True
+                    self.concave_index[i] = 1
+                    self.concave_point.append(self.point[i])
+            else:
+                if _x_product > 0:
+                    self.is_concave = True
+                    self.concave_index[i] = 1
+                    self.concave_point.append(self.point[i])
+        return self.is_concave
 
     def cut(self):  
 
         pass
 
+
     @staticmethod
     def inter(line1,line2):                         #intersection
+        epsilon = 0.001
+        # if (line2[0] == line2[1] or line1[0] == line1[1]):
+        #     return (None, None), 2
         if line1[0][0]==line1[1][0] and line2[0][0]==line2[1][0]:
             x0=None
             y0=None
@@ -1143,7 +1359,8 @@ class concavearea(zigzagarea):
                         temp_x=point_temp[i][0]
                         temp_y=point_temp[i][1]
                         counter+=1
-                    if ratio[i]<1 and ratio[i]>0:
+                    if ratio[i]<1 + epsilon and ratio[i]>0 - epsilon:
+
                         flag=1
                 if counter==2 and flag==0:
                     x0=temp_x
@@ -1162,8 +1379,9 @@ class concavearea(zigzagarea):
             x0=line1[0][0]
             y0=k2*x0+b2
             ratio1=(y0-line1[0][1])/(line1[1][1]-line1[0][1])
-            ratio2=(y0-line2[0][1])/(line2[1][1]-line2[0][1])
-            if ratio1<=1 and ratio1>=0 and ratio2<=1 and ratio2>=0:
+            ratio2=(x0-line2[0][0])/(line2[1][0]-line2[0][0])
+            #ratio2=(y0-line2[0][1])/(line2[1][1]-line2[0][1])
+            if ratio1<=1 + epsilon and ratio1>=0 - epsilon and ratio2<=1 + epsilon and ratio2>=0 - epsilon:
                 isonline=1
             else:
                 isonline=0
@@ -1172,9 +1390,13 @@ class concavearea(zigzagarea):
             b2=(line1[1][0]*line1[0][1]-line1[0][0]*line1[1][1])/(line1[1][0]-line1[0][0])
             x0=line2[0][0]
             y0=k2*x0+b2
-            ratio1=(y0-line1[0][1])/(line1[1][1]-line1[0][1])
+            ratio1=(x0-line1[0][0])/(line1[1][0]-line1[0][0])
+            # print line2
+            print("-----------------line2: ({0},{1}), ({2},{3})", line2[0][0],line2[0][1],line2[1][0],line2[1][1])
+
+            #ratio1=(y0-line1[0][1])/(line1[1][1]-line1[0][1])
             ratio2=(y0-line2[0][1])/(line2[1][1]-line2[0][1])
-            if ratio1<=1 and ratio1>=0 and ratio2<=1 and ratio2>=0:
+            if ratio1<=1 + epsilon and ratio1>=0 - epsilon and ratio2<=1 + epsilon and ratio2>=0 - epsilon:
                 isonline=1
             else:
                 isonline=0
@@ -1188,7 +1410,8 @@ class concavearea(zigzagarea):
                 y0=(b1*k2-b2*k1)/(k2-k1)
                 ratio1=(x0-line1[0][0])/(line1[1][0]-line1[0][0])
                 ratio2=(x0-line2[0][0])/(line2[1][0]-line2[0][0])
-                if ratio1<=1 and ratio1>=0 and ratio2<=1 and ratio2>=0:
+                print("ratio1: {0}, ratio2: {1}".format(ratio1,ratio2))
+                if ratio1<=1 + epsilon and ratio1>=0 - epsilon and ratio2<=1 + epsilon and ratio2>=0 - epsilon:
                     isonline=1
                 else:
                     isonline=0
@@ -1229,10 +1452,6 @@ class concavearea(zigzagarea):
                         '''
                         isonline=3
         return (x0,y0),isonline
-    
-    @staticmethod
-    def find_crosspoint(line1,line2):
-        pass
 
     '''
     isonline:
@@ -1240,33 +1459,8 @@ class concavearea(zigzagarea):
     1   intersection of line segments
     2   parallel but not overlapping
     3   on the same line but not continuous
-    4   overlapping
+    4   overlap
     '''
-
-    @staticmethod
-    def is_inter(line1, line2):
-        try:
-            line1_is_perp = 0
-            line2_is_perp = 0
-            if line1[1,0]-line1[0,0] == 0:
-                line1_is_perp = 1
-            if line2[1,0]-line2[0,0] == 0:
-                line2_is_perp = 1
-            
-            k1 = (line1[1,1]-line1[0,1])/(line1[1,0]-line1[0,0]) if not line1_is_perp else math.inf
-            k2 = (line2[1,1]-line2[0,1])/(line2[1,0]-line2[0,0]) if not line2_is_perp else math.inf
-            
-            cross_point_x = (k1*line1[0,0]-k2*line2[0,0]-line1[0,1]+line2[0,1])/(k1-k2)
-            cross_point_y = (k1*k2*line1[0,0]-k1*k2*line2[0,0]-k2*line1[0,1]+k1*line2[0,1])/(k1-k2)
-
-            
-
-            pass
-        except IndexError:
-            pass
-        pass 
-
-
 
     def isinner(self,line,shape):
         for i in range(len(shape)+1):
@@ -1277,20 +1471,368 @@ class concavearea(zigzagarea):
 
         pass
 
-    def findconcave(self):
-        pass
-
     def cone_generation(self):
         pass
 
-    def extension(self):
-        pass
+    # @staticmethod
+    # def extension(area):
+    #     _area = concavearea(area)
+    #     if not _area.is_concave:
+    #         raise ValueError("Invalid Input: the area is convex, not concave.")
+
+    #     # 初始化子区域列表
+    #     sub_area_left = []
+    #     sub_area_right = []
+
+    #     # 寻找凹点和计算切线交点
+    #     for i in range(len(_area.point)):
+    #         if _area.concave_index[i] == 1:
+    #             # 获取凹点的前一个点和后一个点
+    #             prev_point = _area.point[i - 1] if i > 0 else _area.point[-1]
+    #             next_point = _area.point[(i + 1) % len(_area.point)]
+
+    #             # 计算凹点的切线
+    #             ray = (prev_point, _area.point[i])
+
+    #             # 寻找凹点切线与多边形边的交点
+    #             for j in range(len(_area.edge)):
+    #                 edge = _area.edge[j]
+    #                 intersection, isonline = _area.inter(ray, edge)
+
+    #                 # 检查交点是否在边上并且不是无效点
+    #                 if (
+    #                     isonline == 1
+    #                     and intersection is not None
+    #                     and not (
+    #                         math.isnan(intersection[0]) or math.isnan(intersection[1])
+    #                     )
+    #                 ):
+    #                     # 将交点添加到子区域列表
+    #                     sub_area_left.append(intersection)
+    #                     sub_area_right.append(intersection)
+
+    #                     # 添加子区域特有的点
+    #                     sub_area_left.extend(
+    #                         [_area.point[(i + 1) % len(_area.point)], next_point]
+    #                     )
+    #                     sub_area_right.extend(
+    #                         [_area.point[i - 1 if i > 0 else -1], prev_point]
+    #                     )
+
+    #                     # 特殊情况处理：如果凹点两侧的边是平行的，选择更远的点作为子区域的一部分
+    #                     if j == (i - 1) % len(_area.edge) and (
+    #                         not _area.approximate(edge[0][0], edge[1][0], 0.001)
+    #                     ):
+    #                         sub_area_left.append(edge[1])
+    #                         sub_area_right.append(edge[0])
+
+    #                     break
+
+    #     # 检查子区域列表是否有效
+    #     if (
+    #         not sub_area_left
+    #         or not sub_area_right
+    #         or any(
+    #             math.isnan(point[0]) or math.isnan(point[1])
+    #             for point in sub_area_left + sub_area_right
+    #         )
+    #     ):
+    #         return None, None
+
+    #     return sub_area_left, sub_area_right
+
+    @staticmethod
+    def extension(area):
+        _area = concavearea(area)
+
+        if not _area.is_concave:
+
+            raise ValueError("Invalid Input: convex area.")
+
+        else:
+
+            if _area.is_concave == 1:
+
+                for i in range(len(_area.point)):
+                    _pre_index = i-1
+                    if _pre_index == -1:
+                        _pre_index = len(_area.point) - 1
+
+                    #when ith point is a concave point
+                    if _area.concave_index[i] == 1:
+
+                        min_dist = 99999
+                        pt_res = ()
+                        marked_index = 0
+
+                        _ray = (_area.point[_pre_index][0], _area.point[_pre_index][1]), (_area.point[i][0], _area.point[i][1])
+                        _ray_length = math.sqrt((_ray[0][0]-_ray[1][0])*(_ray[0][0]-_ray[1][0]) + (_ray[0][1]-_ray[1][1])*(_ray[0][1]-_ray[1][1]))
+                        #_ray = _area.point[i][0] - _area.point[_pre_index][0], _area.point[i][1] - _area.point[_pre_index][1]
+                        _sub_area_left = []
+                        _sub_area_right = []
+ 
+                        #cross point search
+                        # print("\nedge length is {0} \n".format(len(_area.edge)))
+                        for j in range(len(_area.edge)):
+
+                            print("ray is {0}, vector is {1}".format(_ray, _area.edge[j]))
+                            _cross_point, _isonline_ray = _area.inter(_ray, _area.edge[j])
+                            print("isonline_ray is {0}".format((_cross_point, _isonline_ray)))
+
+                            if _isonline_ray == 0:
+
+                                #_new_line = _cross_point[0] - _area.point[_pre_index][0], _cross_point[1] - _area.point[_pre_index][1]
+                                _new_line = (_area.point[_pre_index][0], _area.point[_pre_index][1]), (_cross_point[0], _cross_point[1])
+                                print("_new_line, _area.edge[j] is {0}".format((_new_line, _area.edge[j])))
+                                if (abs(_new_line[0][0]-_new_line[1][0]) < 0.001 * _ray_length) and (abs(_new_line[0][1]-_new_line[1][1]) < 0.001 * _ray_length):
+                                    print("**marked**") 
+                                    continue
+                                _cross_point_new, _isonline_new = _area.inter(_new_line, _area.edge[j])
+                                print("_isonline_new is {0}".format(_isonline_new))
+
+                                if _isonline_new == 1:
+                                    
+                                    cur_dist = math.sqrt((_cross_point_new[0]-_area.point[i][0])*(_cross_point_new[0]-_area.point[i][0]) + (_cross_point_new[1]-_area.point[i][1])*(_cross_point_new[1]-_area.point[i][1]))
+                                    print("\n cur_dist is {0}\n", cur_dist)
+                                    if cur_dist < min_dist:
+
+                                        min_dist = cur_dist
+                                        pt_res = _cross_point_new
+                                        marked_index = j
+                        
+
+                        _sub_area_left.append(_area.point[_pre_index])
+                        _sub_area_left.append(pt_res)
+                        _next_index = marked_index + 1
+                        if _next_index == len(_area.edge):
+                            _next_index = 0
+                        while _next_index != _pre_index:
+                            _sub_area_left.append(_area.point[_next_index])
+                            _next_index += 1
+                            if _next_index == len(_area.edge):
+                                _next_index = 0
+
+                        _sub_area_right.append(_area.point[i])
+                        _next_index = i + 1
+                        if _next_index == len(_area.edge):
+                            _next_index = 0
+                        _flag = marked_index + 1 if marked_index + 1 != len(_area.edge) else 0
+                        while _next_index != _flag:
+                            _sub_area_right.append(_area.point[_next_index])
+                            _next_index += 1
+                            if _next_index == len(_area.edge):
+                                _next_index = 0
+                        _sub_area_right.append(pt_res)
+
+                                    # _sub_area_left.append(_area.point[_pre_index])
+                                    # _sub_area_left.append(_cross_point_new)
+                                    # _next_index = j + 1
+                                    # if _next_index == len(_area.edge):
+                                    #     _next_index = 0
+                                    # while _next_index != _pre_index:
+                                    #     _sub_area_left.append(_area.point[_next_index])
+                                    #     _next_index += 1
+                                    #     if _next_index == len(_area.edge):
+                                    #         _next_index = 0
+
+                                    # _sub_area_right.append(_area.point[i])
+                                    # _next_index = i + 1
+                                    # if _next_index == len(_area.edge):
+                                    #     _next_index = 0
+                                    # _flag = j + 1 if j + 1 != len(_area.edge) else 0
+                                    # while _next_index != _flag:
+                                    #     _sub_area_right.append(_area.point[_next_index])
+                                    #     _next_index += 1
+                                    #     if _next_index == len(_area.edge):
+                                    #         _next_index = 0
+                                    # _sub_area_right.append(_cross_point_new)
+
+                                    # '''
+                                    # for k in range(len(_sub_area_right)):
+                                    #     _next_index = k + 1 if k + 1 != len(_sub_area_right) else 0
+                                    #     if zigzagarea.approximate(_sub_area_right[k][0], _sub_area_right[_next_index][0])\
+                                    #           and zigzagarea.approximate(_sub_area_right[k][1], _sub_area_right[_next_index][1]):
+                                    #         _flag = k
+
+                                    # _sub_area_right.pop(k)
+                                    # '''
+
+                                    # return _sub_area_left, _sub_area_right
+                        return _sub_area_left, _sub_area_right
+
 
     def voronoi(self):
         pass
 
     def sweep(self):
         pass
+
+
+# MC = Multi-Connected
+class MCarea(concavearea):
+
+    outline = []
+    point = []
+    MC_point = []
+    MC_sum = 0
+
+    def __init__(self, point_input, MC_sum = 0) -> None:
+        self.point = point_input
+        self.outline = point_input
+        self.MC_sum = MC_sum
+    
+    def reshape(self, MC_sum):
+        self.MC_sum = MC_sum
+    
+    def add_area(self, area):
+        self.MC_point.append(area)
+
+    def update(self, MC_input):
+        self.MC_point = []
+        if len(MC_input) != self.MC_sum:
+            raise ValueError("Incorrect number of multi-connected areas!")
+        for i in range(len(MC_input)):
+            self.MC_point.append(MC_input[i])
+        return self.MC_point
+
+    def deMC(self):
+        for i in range(len(self.MC_point)):
+            pass
+        pass
+
+
+class AreaNode:
+    def __init__(self, area=None, left=None, right=None, height=0, label=None) -> None:
+        self.area=area
+        self.left=left
+        self.right=right
+        self.height=height
+        self.leble=label
+
+class AreaTree:
+
+    root = None
+
+    def __init__(self, root):
+        self.root=root
+        print("root is {0}".format(self.root))
+
+    def grow(self, node, left = None, right = None):
+        node.left = left
+        node.right = right
+
+    def find_leaves(self, root):
+        leaves = []
+
+        def traverse(node):
+            if not node:
+                return 
+            if not node.left and not node.right:
+                leaves.append(node)
+            traverse(node.left)
+            traverse(node.right)
+
+        traverse(root)
+
+        return leaves
+
+    # def leaves_concave(self):
+    #     # 先找到所有的叶子节点
+    #     _leaves = self.find_leaves(self.root)
+    #     # 检查叶子节点是否为 None 或者 空列表
+    #     if not _leaves:
+    #         return False  # 如果没有叶子节点，返回 False 表示没有叶子是凹的
+
+    #     for leaf in _leaves:
+    #         # 检查叶子的区域是否为 None
+    #         if leaf.area is None:
+    #             continue  # 如果叶子的区域是 None，跳过当前叶子继续检查
+
+    #         c = concavearea(leaf.area)  # 创建 concavearea 实例
+    #         if c.is_concave == 1:  # 如果叶子是凹的
+    #             return True  # 返回 True 表示至少有一个叶子是凹的
+
+    #     return False  # 如果所有叶子都是凸的，返回 False
+
+    def leaves_concave(self):
+        _leaves = self.find_leaves(self.root)
+        print("leaves are ... {0}".format(_leaves))
+        for i in _leaves:
+            c = concavearea(i.area)
+            if c.is_concave == 1:
+                return True                     #leaves are concave
+        return False                            #leaves are convex
+
+    def convex_tree_generation(self, issimp = 1):
+
+        c = []
+        _leaves = []
+        _flag = []
+        _area_left = []
+        _area_right = []
+        if issimp:
+            _leaves = self.find_leaves(self.root)
+            _flag = self.leaves_concave()
+            print("_flag is {0}".format(_flag))
+            while _flag:
+                for i in range(len(_leaves)):
+                    c = concavearea(_leaves[i].area)
+                    print("c.point is {0}".format(c.point))
+                    if c.is_concave == True:
+                        _area_left, _area_right = concavearea.extension(c.point)
+                        print()
+                        print("Area_left is {0}".format(_area_left))
+                        print("Area_right is {0}".format(_area_right))
+                        print()
+                        _node_left = AreaNode(_area_left)
+                        _node_right = AreaNode(_area_right)
+                        _leaves[i].left = _node_left
+                        _leaves[i].right = _node_right
+                _flag = self.leaves_concave()
+                _leaves = self.find_leaves(self.root)
+
+    def traversal(self, root):
+        if root:
+            print(root.area)
+            self.traversal(root.left)
+            self.traversal(root.right)
+
+        '''
+        _stack = []
+        _node = self.root
+        while _stack or _node:
+            while _node:
+                _stack.append(_node)
+                _node = _node.left
+            _node = _stack.pop() 
+        '''
+        pass
+
+    def search(self):
+        pass
+
+    def sort(self):
+        pass
+
+    def pre_order(self,root):
+        if root:
+            pass
+        self.pre_oder(root.left)
+        self.pre_oder(root.right)
+
+    def insert(self, val, label):
+
+        '''
+        def _insert(root, val, label):
+            if root is None:
+                return Node(val=val, label=label)
+            
+            #label=1: concave
+            #label=2: convex
+            if root.label==1:
+        '''
+
+    pass
 
 ##Please input:
 
@@ -1597,7 +2139,6 @@ def plot_multi_cpp(coords,UAV_num,sep_area,radius,alpha,v,start_point,DataPath='
     plt.show()
 
 
-
 def DataSave(dist_net, turning, time, route, path='output.txt', para='00000'):
     
     if para[0] == '0':
@@ -1624,6 +2165,98 @@ def DataSave(dist_net, turning, time, route, path='output.txt', para='00000'):
                     f.write(str(route[i][j])+'\n')
                 f.write('\n')
         f.close()
+
+def plot_concave_cpp(area, radius, alpha, v_straight, v_arc, start_point, datapath = './', figurepath = './', para = '11111'):
+    node = AreaNode(area)
+    tree = AreaTree(node)
+    tree.convex_tree_generation()
+    sub_areas = tree.find_leaves(tree.root)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set(title='Coverage Route', ylabel='Y-Axis', xlabel='X-Axis')
+    for i in sub_areas:
+        mem = i.area
+        x0, y0, x1, y1, x2, y2, x3, y3, x4, y4 = [], [], [], [], [], [], [], [], [], []
+        mem_sgl = zigzagarea(mem)
+        mem_sgl.init(radius, alpha)
+        c = mem_sgl.base_vector()
+        d = mem_sgl.trans_solve()
+        e = mem_sgl.split()
+        f = mem_sgl.trans_desolve()
+        total_dist = mem_sgl.point_sort(start_point)
+
+        Dis_total_S, Time_total_T = mem_sgl.time_cal(v_straight, v_arc)
+        Turning_total_M = mem_sgl.turning_cal()
+        Route_coords = total_dist
+
+        for i in d:
+            x1.append(i[0])
+            y1.append(i[1])
+        x1.append(d[0][0])
+        y1.append(d[0][1])
+        for i in mem:
+            x0.append(i[0])
+            y0.append(i[1])
+        x0.append(mem[0][0])
+        y0.append(mem[0][1])
+        for i in range(2):
+            for j in range(len(e[i])):
+                x2.append(e[i][j][0])
+                y2.append(e[i][j][1])
+        for i in range(2):
+            for j in range(len(f[i])):
+                x3.append(f[i][j][0])
+                y3.append(f[i][j][1])
+        for i in range(len(total_dist)):
+
+            if i == 0 or i == 1 or i == len(total_dist) - 1 or i == len(total_dist) - 2:
+                x4.append(total_dist[i][0])
+                y4.append(total_dist[i][1])
+            elif i % 2 == 0:
+                if (i / 2) % 2 == 1:
+                    if mem_sgl.circle_direction == 0:
+                        temp_point = mem_sgl.arc(total_dist[i], total_dist[i + 1])
+                    else:
+                        temp_point = mem_sgl.arc(total_dist[i + 1], total_dist[i])
+                        temp_point = mem_sgl.inv_list(temp_point)
+                else:
+                    if mem_sgl.circle_direction == 0:
+                        temp_point = mem_sgl.arc(total_dist[i + 1], total_dist[i])
+                        temp_point = mem_sgl.inv_list(temp_point)
+                    else:
+                        temp_point = mem_sgl.arc(total_dist[i], total_dist[i + 1])
+                for j in range(len(temp_point) - 1):
+                    x4.append(temp_point[j][0])
+                    y4.append(temp_point[j][1])
+            else:
+                x4.append(total_dist[i][0])
+                y4.append(total_dist[i][1])
+        temp = len(x4)
+        plt.plot(x4[0], y4[0], "o")
+        plt.plot(x4[1], y4[1], "o")
+        plt.plot(x4[len(x4) - 2], y4[len(y4) - 2], "o")
+        # ax.arrow(x4[0], y4[0], x4[1] - x4[0], y4[1] - y4[0], width=0.04, head_width=0.25, head_length=0.35,
+        #      length_includes_head=True, fc='b', ec='b')
+        # ax.arrow(x4[temp - 2], y4[temp - 2], x4[temp - 1] - x4[temp - 2], y4[temp - 1] - y4[temp - 2], width=0.04,
+        #      head_width=0.25, \
+        #      head_length=0.35, length_includes_head=True, fc='b', ec='b')
+
+        x4.pop(0)
+        x4.pop(len(x4) - 1)
+
+        y4.pop(0)
+        y4.pop(len(y4) - 1)
+        plt.plot(x4, y4, "--")
+        plt.plot(x0, y0, "orange")
+    ax.grid(True)
+    plt.axis("equal")
+    plt.legend(loc='upper left', frameon=True)
+    if para[1] == '1':
+        plt.savefig(figurepath,dpi=300)
+    plt.show()
+
+
+
 
 
 
@@ -1657,9 +2290,9 @@ else:
 
 '''
 
-
-
-
-
-
-
+# if __name__ == '__main__':
+#     coords = [(113.18, 34.33), (113.10, 34.31), (113.18, 34.38), (113.22, 34.32), (113.34, 34.37), (113.24, 34.31), (113.23, 34.24), (113.19, 34.31), (113.16, 34.23), (113.08, 34.26), (113.18, 34.33)]
+#     a, b = concavearea.extension(coords)
+#     print(a)
+#     print(b)
+#     plot_single_cpp(a, 0.02, 0.2, 0.05, 0.025, a[0])

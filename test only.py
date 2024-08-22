@@ -4,6 +4,12 @@ import numpy as np
 a='12'
 b='12.2,13.2,13.3,14'
 
+
+
+list_a = [0] * 10
+print("?")
+print(list_a)
+
 print(type(b[0]))
 print(float(b[1]))
 print(float(-3.21))
@@ -13,3 +19,7 @@ print(re.findall('\D+'))
 
 c=[1,2,[2,3,[4,5,[6,7]]]]
 print((np.array(c)).shape)
+
+
+list_a = [0] * 10
+print(list_a)
