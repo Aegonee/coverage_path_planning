@@ -234,6 +234,8 @@ class Ui_MainWindow(object):
         except:
             QtWidgets.QMessageBox.warning(QtWidgets.QWidget(),'Warning','Invalid Input!',\
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
+        finally:
+            f.close()
 
     def ReadFromBrowse(self):
         if self.lineEdit.text() == '':
@@ -335,7 +337,7 @@ class Ui_MainWindow(object):
 
     def calc(self):
 
-        try:
+        #try:
 
             para = ''
             if self.checkBox_5.isChecked():
@@ -384,9 +386,9 @@ class Ui_MainWindow(object):
                 UrlPath = (self.lineEdit_2.text()).replace(os.path.basename(self.lineEdit_2.text()),'')
             
             QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(UrlPath))
-        except:
-            QtWidgets.QMessageBox.warning(QtWidgets.QWidget(),'Warning','Incomplete Parameters!',\
-            QtWidgets.QMessageBox.Yes |  QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
+        #except:
+            #QtWidgets.QMessageBox.warning(QtWidgets.QWidget(),'Warning','Incomplete Parameters!',\
+            #QtWidgets.QMessageBox.Yes |  QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
     
         
         
